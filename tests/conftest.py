@@ -516,14 +516,11 @@ def mock_autoclassify_jobs_true(monkeypatch):
 
 
 @pytest.fixture
-def mock_extract(monkeypatch):
-    """
-    mock BzApiBugProcess._get_bz_source_url() to return
-    a local sample file
-    """
-    from treeherder.etl.bugzilla import BzApiBugProcess
+def mock_bugzilla_api_request(monkeypatch):
+    """Mock etl.common.fetch_json() to return a local sample file."""
+    from treeherder.etl import common
 
-    def extract(obj, url):
+    def _fetch_json(obj, url, params=None):
         tests_folder = os.path.dirname(__file__)
         bug_list_path = os.path.join(
             tests_folder,
@@ -533,9 +530,11 @@ def mock_extract(monkeypatch):
         with open(bug_list_path) as f:
             return json.loads(f.read())
 
-    monkeypatch.setattr(BzApiBugProcess,
-                        'extract',
-                        extract)
+    monkeypatch.setattr(common,
+                        'fetch_json',
+                        _fetch_json)
+
+    # TODO: Replace with responses
 
 
 @pytest.fixture
