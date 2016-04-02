@@ -151,3 +151,8 @@ class FailureLineNoStackSerializer(serializers.ModelSerializer):
         exclude = ['stack',
                    'stackwalk_stdout',
                    'stackwalk_stderr']
+
+class PulseStoreSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = models.PulseStore

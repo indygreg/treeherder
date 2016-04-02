@@ -10,6 +10,7 @@ from treeherder.webapp.api import (artifact,
                                    logslice,
                                    note,
                                    performance_data,
+                                   pulse_store,
                                    refdata,
                                    resultset,
                                    runnable_jobs)
@@ -100,6 +101,7 @@ default_router.register(r'user', refdata.UserViewSet, base_name='user')
 default_router.register(r'exclusion-profile', refdata.ExclusionProfileViewSet)
 default_router.register(r'job-exclusion', refdata.JobExclusionViewSet)
 default_router.register(r'matcher', refdata.MatcherViewSet)
+default_router.register(r'pulse-store', pulse_store.PulseStoreViewSet)
 default_router.register(r'performance/alertsummary',
                         performance_data.PerformanceAlertSummaryViewSet,
                         base_name='performance-alert-summaries')

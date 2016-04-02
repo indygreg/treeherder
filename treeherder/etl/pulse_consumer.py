@@ -16,6 +16,7 @@ class JobConsumer(ConsumerMixin):
     def __init__(self, connection):
         self.connection = connection
         self.consumers = []
+        self.queue = None
 
     def get_consumers(self, Consumer, channel):
         return [
@@ -24,24 +25,42 @@ class JobConsumer(ConsumerMixin):
 
     def listen_to(self, exchange, routing_key, queue_name,
                   durable=True, auto_delete=False):
-        queue = Queue(
-            name=queue_name,
-            channel=self.connection.channel(),
-            exchange=exchange,
-            routing_key=routing_key,
-            durable=durable,
-            auto_delete=auto_delete
-        )
+        if not self.queue:
+            self.queue = Queue(
+                name=queue_name,
+                channel=self.connection.channel(),
+                exchange=exchange,
+                routing_key=routing_key,
+                durable=durable,
+                auto_delete=auto_delete
+            )
+            self.consumers.append(dict(
+                queues=self.queue,
+                callbacks=[self.on_message])
+            )
+            self.queue.queue_declare()
+            self.queue.queue_bind()
+            logging.info("Created pulse queue: {}".format(queue_name))
+        else:
+            self.queue.bind_to(exchange, routing_key)
+            logging.info("BoundCreated pulse queue: {}".format(queue_name))
 
-        self.consumers.append(dict(queues=queue, callbacks=[self.on_message]))
 
     def on_message(self, body, message):
         try:
-            jobs = json.loads(body)
+            try:
+                jobs = json.loads(body)
+
+            except TypeError:
+                # self.stdout.write("got type error, trying as object")
+                jobs = body
+
             store_pulse_jobs.apply_async(
                 args=[jobs],
                 routing_key='store_pulse_jobs'
             )
+            logging.info("<><><> received pulse job message")
+            print("<><> got message")
             message.ack()
 
         except Exception:
