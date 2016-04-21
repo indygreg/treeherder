@@ -7,7 +7,6 @@ from dateutil import parser
 
 from treeherder.etl.schema import job_json_schema
 from treeherder.model.derived.jobs import JobsModel
-from treeherder.model.models import Repository
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +38,6 @@ class JobLoader:
         "build_platform": "buildMachine",
         "machine_platform": "runMachine"
     }
-
 
     def process_job_list(self, all_jobs_list):
         if not isinstance(all_jobs_list, list):

@@ -1,5 +1,4 @@
 import logging
-from urlparse import urlparse
 
 from django.conf import settings
 from django.core.management.base import BaseCommand
@@ -54,7 +53,7 @@ class Command(BaseCommand):
                 consumer.run()
             except KeyboardInterrupt:
 
-                #TODO: need to un-bind and shut down gracefully
+                # TODO: need to un-bind and shut down gracefully
                 self.stdout.write("Pulse listening stopped...")
         finally:
             consumer.close()

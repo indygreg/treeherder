@@ -45,7 +45,6 @@ class JobConsumer(ConsumerMixin):
             self.queue.bind_to(exchange, routing_key)
             logging.info("BoundCreated pulse queue: {}".format(queue_name))
 
-
     def on_message(self, body, message):
         try:
             try:
@@ -59,7 +58,7 @@ class JobConsumer(ConsumerMixin):
                 args=[jobs],
                 routing_key='store_pulse_jobs'
             )
-            logging.info("<><><> received pulse job message")
+            logger.info("<><><> received pulse job message")
             print("<><> got message")
             message.ack()
 
