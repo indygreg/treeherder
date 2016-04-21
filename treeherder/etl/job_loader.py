@@ -7,6 +7,7 @@ from dateutil import parser
 
 from treeherder.etl.schema import job_json_schema
 from treeherder.model.derived.jobs import JobsModel
+from treeherder.model.models import PulseStore, Repository
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +29,17 @@ class JobLoader:
         "canceled": "usercancel",
         "unknown": "unknown"
     }
+    TIME_FIELD_MAP = {
+        "submit_timestamp": "timeScheduled",
+        "start_timestamp": "timeStarted",
+        "end_timestamp": "timeCompleted"
+    }
+
+    PLATFORM_FIELD_MAP = {
+        "build_platform": "buildMachine",
+        "machine_platform": "runMachine"
+    }
+
 
     def process_job_list(self, all_jobs_list):
         if not isinstance(all_jobs_list, list):
@@ -38,11 +50,17 @@ class JobLoader:
         for project, job_list in validated_jobs.items():
             with JobsModel(project) as jobs_model:
                 storeable_job_list = []
+                repo = Repository.objects.get(name=project)
                 for pulse_job in job_list:
                     if pulse_job["state"] != "unscheduled":
                         try:
                             storeable_job_list.append(
                                 self.transform(pulse_job)
+                            )
+                            PulseStore.objects.create(
+                                repository=repo,
+                                revision=pulse_job["origin"]["revision"],
+                                message=pulse_job
                             )
                         except AttributeError:
                             logger.warn("Skipping job due to bad attribute",
@@ -74,18 +92,23 @@ class JobLoader:
                 "reason": pulse_job.get("reason", "unknown"),
                 "who": pulse_job.get("owner", "unknown"),
                 "tier": pulse_job.get("tier", 1),
-                "submit_timestamp": self._to_timestamp(pulse_job["timeScheduled"]),
-                "start_timestamp": self._to_timestamp(pulse_job["timeStarted"]),
-                "end_timestamp": self._to_timestamp(pulse_job["timeCompleted"]),
                 "machine": self._get_machine(pulse_job),
-                "build_platform": self._get_platform(pulse_job.get("buildMachine", None)),
-                "machine_platform": self._get_platform(pulse_job.get("runMachine", None)),
                 "option_collection": self._get_option_collection(pulse_job),
                 "log_references": self._get_log_references(pulse_job),
                 "artifacts": self._get_artifacts(pulse_job, job_guid),
             },
             "coalesced": pulse_job.get("coalesced", [])
         }
+
+        # some or all the time fields may not be present in some cases
+        for k, v in self.TIME_FIELD_MAP.items():
+            if k in pulse_job:
+                x["job"][v] = self._to_timestamp(pulse_job[k])
+
+        for k, v in self.PLATFORM_FIELD_MAP.items():
+            if k in pulse_job:
+                x["job"][v] = pulse_job[k]
+
         return x
 
     def _get_job_guid(self, job):
