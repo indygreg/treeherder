@@ -27,22 +27,29 @@ treeherder.controller('BugFilerCtrl', [
             return reftest !== "";
         };
 
+        $scope.parsedLog = parsedLog;
+        $scope.fullLog = fullLog;
+        if ($scope.isReftest()) {
+            $scope.reftest = reftest;
+        }
+
         /**
          *  Pre-fill the form with information/metadata from the failure
          */
         $scope.initiate = function() {
-            $uibModalInstance.parsedSummary = $uibModalInstance.parseSummary(summary);
+            // $uibModalInstance.parsedSummary = $uibModalInstance.parseSummary(summary);
+            //
+            // $scope.modalSummary = "Intermittent " + $uibModalInstance.parsedSummary[0].join(" | ");
 
-            $scope.modalSummary = "Intermittent " + $uibModalInstance.parsedSummary[0].join(" | ");
-
-            $("#modalParsedLog").next().attr("href", parsedLog);
-            $("#modalFullLog").next().attr("href", fullLog);
-            if ($scope.isReftest()) {
-                $("#modalReftestLog").next().attr("href", reftest);
-            }
+            // $("#modalParsedLog").next().attr("href", parsedLog);
+            // $("#modalFullLog").next().attr("href", fullLog);
+            // if ($scope.isReftest()) {
+            //     $("#modalReftestLog").next().attr("href", reftest);
+            // }
 
             var thisFailure = "";
             for(var i = 0; i < allFailures.length; i++) {
+                console.log("allFailures", allFailures[i]);
                 var omittedLeads = ["TEST-UNEXPECTED-FAIL", "PROCESS-CRASH", "TEST-UNEXPECTED-ERROR", "TEST-UNEXPECTED-TIMEOUT"];
                 for(var j=0; j < omittedLeads.length; j++) {
                     if(allFailures[i][0].search(omittedLeads[j]) >= 0) {
@@ -53,9 +60,10 @@ treeherder.controller('BugFilerCtrl', [
                     thisFailure += "\n";
                 }
                 thisFailure += allFailures[i].join(" | ");
-                $("#modalFailureList");
+                // $("#modalFailureList");
             }
-            $("#modalFailureList").val(thisFailure);
+            $scope.thisFailure = thisFailure;
+            // $("#modalFailureList").val(thisFailure);
 
             $scope.findProduct();
         };
@@ -82,6 +90,9 @@ treeherder.controller('BugFilerCtrl', [
 
             return [summary, $uibModalInstance.possibleFilename];
         };
+
+        $uibModalInstance.parsedSummary = $uibModalInstance.parseSummary(summary);
+        $scope.modalSummary = "Intermittent " + $uibModalInstance.parsedSummary[0].join(" | ");
 
         $scope.toggleFilerSummaryVisibility = function() {
             $scope.isFilerSummaryVisible = !$scope.isFilerSummaryVisible;
@@ -114,6 +125,7 @@ treeherder.controller('BugFilerCtrl', [
                             $scope.suggestedProducts.push(data.products[i].product + " :: " + data.products[i].component);
                         }
                     }
+                    $scope.selectedProduct = $scope.suggestedProducts[0];
                 });
             }
         };
@@ -132,6 +144,11 @@ treeherder.controller('BugFilerCtrl', [
             $uibModalInstance.dismiss('cancel');
         };
 
+        $scope.checkedLogLinks = {
+            parsedLog: $scope.parsedLog,
+            fullLog: $scope.fullLog,
+            reftest: $scope.reftest
+        };
         /*
          *  Actually send the gathered information to bugzilla.
          */
@@ -166,14 +183,27 @@ treeherder.controller('BugFilerCtrl', [
                 alert("Please select (or search and select) a product/component pair to continue");
                 return;
             }
-            var logstrings = "";
-            var logcheckboxes = document.getElementById("modalLogLinkCheckboxes").getElementsByTagName("input");
+            // var logstrings = "";
+            // var logcheckboxes = document.getElementById("modalLogLinkCheckboxes").getElementsByTagName("input");
 
-            for(var i=0;i<logcheckboxes.length;i++) {
-                if(logcheckboxes[i].checked) {
-                    logstrings += logcheckboxes[i].nextElementSibling.href + "\n\n";
+            var logstrings = _.reduce($scope.checkedLogLinks, function(result, link) {
+                if(link) {
+                    result = result + link + "\n\n";
                 }
-            }
+                return result;
+            }, "");
+            console.log("logstrings", logstrings);
+            // _.forEach($scope.checkedLogLinks, function(link) {
+            //     if(link) {
+            //         logstrings += link + "\n\n";
+            //     }
+            // });
+            return;
+            // for (var i=0;i<logcheckboxes.length;i++) {
+            //     if(logcheckboxes[i].checked) {
+            //         logstrings += logcheckboxes[i].nextElementSibling.href + "\n\n";
+            //     }
+            // }
 
             // Fetch product information from bugzilla to get version numbers, then submit the new bug
             // Only request the versions because some products take quite a long time to fetch the full object
