@@ -94,12 +94,17 @@ class JobLoader:
 
         # some or all the time fields may not be present in some cases
         for k, v in self.TIME_FIELD_MAP.items():
-            if k in pulse_job:
-                x["job"][v] = self._to_timestamp(pulse_job[k])
+            if v in pulse_job:
+                x["job"][k] = self._to_timestamp(pulse_job[v])
+
+        # if only one is given, use it.
+        default_platform = pulse_job.get(
+            "buildMachine",
+            pulse_job.get("runMachine", {}))
 
         for k, v in self.PLATFORM_FIELD_MAP.items():
-            if k in pulse_job:
-                x["job"][v] = pulse_job[k]
+            platform_src = pulse_job[v] if v in pulse_job else default_platform
+            x["job"][k] = self._get_platform(platform_src)
 
         return x
 
@@ -131,14 +136,13 @@ class JobLoader:
 
     def _get_job_info_artifact(self, job, job_guid):
         if "jobInfo" in job:
-
             ji = job["jobInfo"]
             job_details = []
             if "summary" in ji:
                 job_details.append({
                     "content_type": "raw_html",
-                    "value": ji["summary"]["text"],
-                    "title": ji["summary"]["label"]
+                    "value": ji["summary"],
+                    "title": "Summary"
                 })
             if "links" in ji:
                 for link in ji["links"]:
@@ -234,7 +238,7 @@ class JobLoader:
         return option_collection
 
     def _get_platform(self, platform_src):
-        platform = None
+        platform = {}
         if platform_src:
             platform = {
                 "platform": platform_src["platform"],
@@ -246,9 +250,9 @@ class JobLoader:
     def _get_machine(self, job):
         machine = "unknown"
         if "buildMachine" in job:
-            machine = job["buildMachine"]["name"]
+            machine = job["buildMachine"].get("name", machine)
         if "runMachine" in job:
-            machine = job["runMachine"]["name"]
+            machine = job["runMachine"].get("name", machine)
         return machine
 
     def _get_result(self, job):

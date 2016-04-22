@@ -51,7 +51,6 @@ class JobConsumer(ConsumerMixin):
                 jobs = json.loads(body)
 
             except TypeError:
-                # self.stdout.write("got type error, trying as object")
                 jobs = body
 
             store_pulse_jobs.apply_async(
@@ -59,7 +58,6 @@ class JobConsumer(ConsumerMixin):
                 routing_key='store_pulse_jobs'
             )
             logger.info("<><><> received pulse job message")
-            print("<><> got message")
             message.ack()
 
         except Exception:

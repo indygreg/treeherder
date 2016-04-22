@@ -20,7 +20,10 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         config = settings.PULSE_DATA_INGESTION_CONFIG
         userid = urlparse(config).username
-        queue_name = "queue/{}/jobs".format(userid)
+        queue_name = "queue/{}/{}".format(
+            userid,
+            settings.PULSE_DATA_INGESTION_QUEUE_SUFFIX
+        )
         durable = settings.PULSE_DATA_INGESTION_QUEUES_DURABLE
         auto_delete = settings.PULSE_DATA_INGESTION_QUEUES_AUTO_DELETE
 
@@ -59,6 +62,8 @@ class Command(BaseCommand):
                                 routing_key
                             ))
 
+            # print(consumer.queue.channel)
+            # print(consumer.queue.bindings)
             try:
                 consumer.run()
             except KeyboardInterrupt:
