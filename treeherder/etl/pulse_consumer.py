@@ -3,6 +3,7 @@ import logging
 
 from kombu import Queue
 from kombu.mixins import ConsumerMixin
+from kombu import Exchange
 
 from treeherder.etl.tasks.pulse_tasks import store_pulse_jobs
 
@@ -13,37 +14,41 @@ class JobConsumer(ConsumerMixin):
     """
     Consume jobs from Pulse exchanges
     """
-    def __init__(self, connection):
+    def __init__(self, connection, queue_name, sources):
         self.connection = connection
-        self.consumers = []
-        self.queue = None
+        self.queue_name = queue_name
+        self.sources = sources
+        self.stored_queues = None
+
+    @property
+    def queues(self):
+        """List of queues used by worker.
+        Multiple queues are used to track multiple routing keys.
+        """
+        if not self.stored_queues:
+            self.stored_queues = []
+            for source in self.sources:
+                # ensure the exchange exists.  Throw an error if it doesn't
+                exchange = Exchange(source["exchange"], type="topic")
+                exchange(self.connection).declare(passive=True)
+
+                logger.info("Connected to Pulse Exchange: {}".format(
+                    source["name"]))
+
+                for project in source["projects"]:
+                    for destination in source['destinations']:
+                        routing_key = "{}.{}".format(destination, project)
+                        queue = Queue(name=self.queue_name, exchange=exchange,
+                                      routing_key=routing_key, durable=True,
+                                      exclusive=False,
+                                      auto_delete=False)
+
+                        self.stored_queues.append(queue)
+        return self.stored_queues
+
 
     def get_consumers(self, Consumer, channel):
-        return [
-            Consumer(**c) for c in self.consumers
-        ]
-
-    def listen_to(self, exchange, routing_key, queue_name,
-                  durable=True, auto_delete=False):
-        if not self.queue:
-            self.queue = Queue(
-                name=queue_name,
-                channel=self.connection.channel(),
-                exchange=exchange,
-                routing_key=routing_key,
-                durable=durable,
-                auto_delete=auto_delete
-            )
-            self.consumers.append(dict(
-                queues=self.queue,
-                callbacks=[self.on_message])
-            )
-            self.queue.queue_declare()
-            self.queue.queue_bind()
-            logging.info("Created pulse queue: {}".format(queue_name))
-        else:
-            self.queue.bind_to(exchange, routing_key)
-            logging.info("BoundCreated pulse queue: {}".format(queue_name))
+        return [Consumer(queues=self.queues, callbacks=[self.on_message])]
 
     def on_message(self, body, message):
         try:
@@ -65,3 +70,31 @@ class JobConsumer(ConsumerMixin):
 
     def close(self):
         self.connection.release()
+
+# this is what they look like in the config
+# PULSE_DATA_INGESTION_EXCHANGES = [
+    # {
+    #     "exchange": "exchange/garndt-debug/v1/jobs",
+    #     "name": "garndt-debug/jobs",
+    #     "projects": [
+    #         '#',
+    #     ],
+    #     "destinations": [
+    #         'treeherder',
+    #         '#'
+    #     ]
+    # },
+    # {
+    #     "exchange": "exchange/treeherder-test/jobs",
+    #     "name": "localtest/jobs",
+    #     "projects": [
+    #         '#'
+    #     ],
+    #     "destinations": [
+    #         '#',
+    #         'treeherder',
+    #         'treeherder-staging'
+    #     ]
+    # },
+    # ... other CI systems
+# ]
