@@ -84,7 +84,7 @@ class ElasticSearchTestMatcher(Matcher):
     def __call__(self, failure_lines):
         rv = []
         for failure_line in failure_lines:
-            if failure_line.action != "test_result":
+            if failure_line.action != "test_result" or not failure_line.message:
                 continue
             match = ESMatch(message={"query": failure_line.message,
                                      "type": "phrase"})
