@@ -2,14 +2,18 @@ import logging
 from abc import (ABCMeta,
                  abstractmethod)
 from collections import namedtuple
+from difflib import SequenceMatcher
 
 from django.db.models import (Q,
                               Func,
                               Value)
+from elasticsearch_dsl import Search
+from elasticsearch_dsl.query import Match as ESMatch
 
 from treeherder.model.models import (ClassifiedFailure,
                                      FailureMatch,
                                      MatcherManager)
+from treeherder.model.search import TestFailureLine
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +77,37 @@ class PreciseTestMatcher(Matcher):
         return rv
 
 
+class ElasticSearchTestMatcher(Matcher):
+    """Matcher that looks for existing failures with identical tests, and error
+    message that is a good match when non-alphabetic tokens have been removed."""
+
+    def __call__(self, failure_lines):
+        rv = []
+        for failure_line in failure_lines:
+            if failure_line.action != "test_result":
+                continue
+            match = ESMatch(message={"query": failure_line.message,
+                                     "type": "phrase"})
+            search = (Search(doc_type=TestFailureLine)
+                      .filter("term", test=failure_line.test)
+                      .filter("term", subtest=failure_line.subtest)
+                      .filter("term", status=failure_line.status)
+                      .filter("term", expected=failure_line.expected)
+                      .filter("exists", field="best_classification")
+                      .query(match))
+            resp = search.execute()
+            scorer = MatchScorer(failure_line.message)
+            matches = [(item, item.message) for item in resp]
+            best_match = scorer.best_match(matches)
+            if best_match:
+                logger.debug("Matched using elastic search test matcher")
+                rv.append(Match(failure_line,
+                                ClassifiedFailure.objects.get(
+                                    id=best_match[1].best_classification),
+                                best_match[0]))
+        return rv
+
+
 class CrashSignatureMatcher(Matcher):
     """Matcher that looks for crashes with identical signature"""
 
@@ -102,6 +137,24 @@ class CrashSignatureMatcher(Matcher):
         return rv
 
 
+class MatchScorer(object):
+    def __init__(self, target):
+        self.matcher = SequenceMatcher(lambda x: x == " ")
+        self.matcher.set_seq2(target)
+
+    def best_match(self, matches):
+        best_match = None
+        for match, message in matches:
+            self.matcher.set_seq1(message)
+            ratio = self.matcher.quick_ratio()
+            if best_match is None or ratio >= best_match[0]:
+                new_ratio = self.matcher.ratio()
+                if best_match is None or new_ratio > best_match[0]:
+                    best_match = (new_ratio, match)
+        return best_match
+
+
 def register():
-    for obj in [PreciseTestMatcher, CrashSignatureMatcher]:
+    for obj in [PreciseTestMatcher, CrashSignatureMatcher,
+                ElasticSearchTestMatcher]:
         MatcherManager.register_matcher(obj)

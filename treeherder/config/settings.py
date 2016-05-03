@@ -512,3 +512,13 @@ HAWK_CREDENTIALS_LOOKUP = 'treeherder.webapp.api.auth.hawk_lookup'
 
 # This is the client ID used by the internal data ingestion service.
 ETL_CLIENT_ID = 'treeherder-etl'
+
+# Configuration for elasticsearch backend
+ELASTIC_SEARCH = {
+    "url": env.str('ELASTICSEARCH_URL', default='127.0.0.1:9200'),
+    "index_prefix": "",
+    "use_ssl": False
+}
+
+if env.bool('IS_HEROKU', default=False):
+    ELASTIC_SEARCH["use_ssl"] = True
