@@ -90,11 +90,12 @@ class ElasticSearchTestMatcher(Matcher):
                                      "type": "phrase"})
             search = (Search(doc_type=TestFailureLine)
                       .filter("term", test=failure_line.test)
-                      .filter("term", subtest=failure_line.subtest)
                       .filter("term", status=failure_line.status)
                       .filter("term", expected=failure_line.expected)
                       .filter("exists", field="best_classification")
                       .query(match))
+            if failure_line.subtest:
+                search = search.filter("term", subtest=failure_line.subtest)
             try:
                 resp = search.execute()
             except:
