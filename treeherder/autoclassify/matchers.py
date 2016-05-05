@@ -95,7 +95,13 @@ class ElasticSearchTestMatcher(Matcher):
                       .filter("term", expected=failure_line.expected)
                       .filter("exists", field="best_classification")
                       .query(match))
-            resp = search.execute()
+            try:
+                resp = search.execute()
+            except:
+                logger.error("Elastic search lookup failed: %s %s %s %s %s" % (
+                    failure_line.test, failure_line.subtest, failure_line.status,
+                    failure_line.expected, failure_line.message))
+                raise
             scorer = MatchScorer(failure_line.message)
             matches = [(item, item.message) for item in resp]
             best_match = scorer.best_match(matches)
